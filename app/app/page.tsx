@@ -143,7 +143,6 @@ export default function Home() {
         fetchExcluded();
     }, [fetchData, fetchExcluded]);
 
-    // Memoize the filtered data to use in both Chart and Table
     const filteredData = useMemo(() => {
         if (!performanceData.length || !anchorDate) return [];
 
@@ -164,12 +163,24 @@ export default function Home() {
         return filtered.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
     }, [performanceData, anchorDate, currentDuration, filterType]);
 
+    // Calculate Daily Volume for the last 7 days
+    const dailyVolume = useMemo(() => {
+        if (!anchorDate) return [];
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const dateStr = dayjs(anchorDate).subtract(i, 'day').format('YYYY-MM-DD');
+            const count = performanceData.filter(d => dayjs(d.timestamp).format('YYYY-MM-DD') === dateStr).length;
+            days.push({ date: dayjs(dateStr).format('MM/DD'), count });
+        }
+        return days;
+    }, [performanceData, anchorDate]);
+
     useEffect(() => {
         if (!anchorDate) return;
         const endDate = dayjs(anchorDate).endOf('day').toDate();
         const startDate = dayjs(endDate).subtract(currentDuration - 1, 'day').startOf('day').toDate();
         updateChart(filteredData, startDate, endDate);
-    }, [filteredData, anchorDate, currentDuration]); // Depend on filteredData
+    }, [filteredData, anchorDate, currentDuration]);
 
     const updateChart = (data: PerformancePair[], startDate: Date, endDate: Date) => {
         if (!chartRef.current) return;
@@ -267,8 +278,6 @@ export default function Home() {
 
     const getStats = () => {
         if (!anchorDate) return { office: '--', night: '--', weekend: '--' };
-        // Use filteredData directly but filteredData depends on date range, so we can just use filteredData
-        // Actually stats are usually based on the same date range as the chart
         const groups = { OFFICE: [] as number[], WEEKNIGHT: [] as number[], WEEKEND: [] as number[] };
         filteredData.forEach(d => groups[d.category].push(d.seconds));
         const fmt = (arr: number[]) => arr.length ? formatDuration(arr.reduce((a,b)=>a+b,0)/arr.length) : '--';
@@ -320,7 +329,7 @@ export default function Home() {
                           
                           <button 
                             onClick={() => setShowSettings(!showSettings)}
-                            className={`px-3 py-1.5 rounded-md font-medium border transition-colors ${showSettings ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-100'}`}
+                            className={`px-3 py-1.5 rounded-md font-medium border transition-colors ${showSettings ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}
                           >
                               ⚙️ Filter
                           </button>
@@ -355,19 +364,36 @@ export default function Home() {
                       </div>
                   )}
 
-                  {/* Stats Cards */}
-                  <div className='grid grid-cols-1 md:grid-cols-3 gap-5 mb-8'>
+                  {/* Stats Cards Row 1: Averages */}
+                  <div className='grid grid-cols-1 md:grid-cols-3 gap-5 mb-6'>
                       <div className={`p-5 rounded-lg border-l-4 border-green-500 bg-white border shadow-sm transition-all ${cardDimmed('OFFICE')}`}>
-                          <div className='text-xs text-gray-500 uppercase font-bold tracking-wider'>Office Hours (9:30-18:30)</div>
+                          <div className='text-xs text-gray-500 uppercase font-bold tracking-wider'>Office Hours Avg (9:30-18:30)</div>
                           <div className='text-3xl font-black text-gray-900 mt-1'>{stats.office}</div>
                       </div>
                       <div className={`p-5 rounded-lg border-l-4 border-amber-500 bg-white border shadow-sm transition-all ${cardDimmed('NIGHT')}`}>
-                          <div className='text-xs text-gray-500 uppercase font-bold tracking-wider'>Weeknights</div>
+                          <div className='text-xs text-gray-500 uppercase font-bold tracking-wider'>Weeknights Avg</div>
                           <div className='text-3xl font-black text-gray-900 mt-1'>{stats.night}</div>
                       </div>
                       <div className={`p-5 rounded-lg border-l-4 border-red-500 bg-white border shadow-sm transition-all ${cardDimmed('WEEKEND')}`}>
-                          <div className='text-xs text-gray-500 uppercase font-bold tracking-wider'>Weekends</div>
+                          <div className='text-xs text-gray-500 uppercase font-bold tracking-wider'>Weekends Avg</div>
                           <div className='text-3xl font-black text-gray-900 mt-1'>{stats.weekend}</div>
+                      </div>
+                  </div>
+
+                  {/* Daily Volume Bar */}
+                  <div className='mb-8'>
+                      <div className='text-xs text-gray-400 uppercase font-bold tracking-widest mb-3 flex items-center gap-2'>
+                          <span className='w-2 h-2 rounded-full bg-blue-500'></span>
+                          Daily Message Volume (Last 7 Days)
+                      </div>
+                      <div className='grid grid-cols-7 gap-3'>
+                          {dailyVolume.map((day, idx) => (
+                              <div key={idx} className='bg-gray-50 border border-gray-200 rounded-lg p-3 text-center'>
+                                  <div className='text-[10px] text-gray-400 font-bold uppercase'>{day.date}</div>
+                                  <div className='text-xl font-black text-blue-600'>{day.count}</div>
+                                  <div className='text-[8px] text-gray-400 uppercase'>replies</div>
+                              </div>
+                          ))}
                       </div>
                   </div>
 

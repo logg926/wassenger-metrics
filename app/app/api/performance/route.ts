@@ -168,20 +168,42 @@ export async function GET(request: Request) {
                 } else hasMore = false;
             }
 
+            // Resolve Chat Map with Pagination Loop + Fallback
             const chatMap: Record<string, string> = {};
             if (groupIds.size > 0) {
                 try {
-                    const chatsRes = await axios.get(`https://api.wassenger.com/v1/chat/${activeDevice.id}/chats`, {
-                        headers: { 'Token': WASSENGER_TOKEN },
-                        params: { size: 100, sort: 'date:desc' } 
-                    });
-                    
-                    chatsRes.data.forEach((c: any) => {
-                        if (c.name) chatMap[c.id] = c.name;
-                    });
-                } catch (err) {
-                    console.error('Failed to fetch chat details:', err);
-                }
+                    let chatPage = 0;
+                    let moreChats = true;
+                    // Loop to fetch up to 1000 active chats
+                    while (moreChats && chatPage < 20) {
+                        const chatsRes = await axios.get(`https://api.wassenger.com/v1/chat/${activeDevice.id}/chats`, {
+                            headers: { 'Token': WASSENGER_TOKEN },
+                            params: { size: 50, page: chatPage, sort: 'date:desc' } 
+                        });
+                        
+                        if (chatsRes.data.length > 0) {
+                            chatsRes.data.forEach((c: any) => {
+                                if (c.name) chatMap[c.id] = c.name;
+                            });
+                            if (chatsRes.data.length < 50) moreChats = false;
+                            else chatPage++;
+                        } else {
+                            moreChats = false;
+                        }
+                    }
+
+                    // Direct Lookup Fallback for missing names
+                    const missing = Array.from(groupIds).filter(id => !chatMap[id]);
+                    if (missing.length > 0) {
+                        for (let i = 0; i < Math.min(missing.length, 5); i++) {
+                            const id = missing[i];
+                            try {
+                                const sRes = await axios.get(`https://api.wassenger.com/v1/chat/${activeDevice.id}/chats/${id}`, { headers: { 'Token': WASSENGER_TOKEN } });
+                                if (sRes.data?.name) chatMap[id] = sRes.data.name;
+                            } catch (e) {}
+                        }
+                    }
+                } catch (err) { console.error('Chat resolution error:', err); }
             }
 
             const { performanceData, pendingMessages } = calculatePerformance(allMessages, excludedIds, chatMap);
