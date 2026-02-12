@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logic Core: Analytics V6</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <style>
+        :root { --primary: #2563eb; --bg: #f3f4f6; --card: #ffffff; --text: #1f2937; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: var(--card); border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 24px; margin-bottom: 24px; }
+        
+        /* Header & Controls */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        h2 { margin: 0; font-size: 1.5rem; color: #111; }
+        .date-display { font-size: 0.9rem; color: #64748b; margin-top: 5px; font-family: monospace; }
+
+        .controls { display: flex; gap: 15px; align-items: center; background: #f8fafc; padding: 10px 16px; border-radius: 8px; border: 1px solid #e2e8f0; flex-wrap: wrap; }
+        
+        .control-group { display: flex; align-items: center; gap: 8px; border-right: 1px solid #cbd5e1; padding-right: 15px; }
+        .control-group:last-child { border-right: none; padding-right: 0; }
+
+        input[type="date"], select { padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: inherit; color: #334155; outline: none; background: white; cursor: pointer;}
+        select:hover { border-color: var(--primary); }
+
+        .btn-group { display: flex; gap: 5px; }
+        .btn { padding: 6px 16px; border: 1px solid #cbd5e1; background: white; color: #64748b; border-radius: 6px; cursor: pointer; transition: 0.2s; font-weight: 500; }
+        .btn:hover { background: #f1f5f9; }
+        .btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Stats Grid */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .stat-item { padding: 20px; border-radius: 10px; background: #fff; border: 1px solid #e2e8f0; position: relative; overflow: hidden; opacity: 1; transition: opacity 0.3s; }
+        
+        /* Dimmed State: 當某個分類未被選中時，透明度降低 */
+        .stat-item.dimmed { opacity: 0.4; filter: grayscale(80%); } 
+        
+        .stat-item::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+        .stat-item.office::before { background: #10b981; }
+        .stat-item.night::before { background: #f59e0b; }
+        .stat-item.weekend::before { background: #ef4444; }
+        
+        .stat-label { font-size: 0.85rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+        .stat-value { font-size: 1.8rem; font-weight: 700; color: #0f172a; }
+        .stat-desc { font-size: 0.75rem; color: #94a3b8; margin-top: 5px; }
+
+        .chart-container { position: relative; height: 450px; width: 100%; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <div class="header">
+            <div>
+                <h2>客服績效分析 (Analytics)</h2>
+                <div class="date-display" id="rangeDisplay">Loading...</div>
+            </div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <span style="font-size: 0.9rem; color: #64748b;">基準日:</span>
+                    <input type="date" id="anchorDate" onchange="refreshView()">
+                </div>
+
+                <div class="control-group">
+                    <div class="btn-group">
+                        <button class="btn" id="btn-1" onclick="setDuration(1)">1 Day</button>
+                        <button class="btn" id="btn-3" onclick="setDuration(3)">3 Days</button>
+                        <button class="btn" id="btn-7" onclick="setDuration(7)">7 Days</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <select id="timeFilter" onchange="refreshView()">
+                        <option value="ALL">顯示全部 (All)</option>
+                        <option value="OFFICE">平日上班 (Office Hours Only)</option>
+                        <option value="NIGHT">平日晚上 (Weeknights Only)</option>
+                        <option value="WEEKEND">週末六日 (Weekends Only)</option>
+                    </select>
+                </div>
+                
+                <button class="btn" onclick="regenerateData()" style="border:none;">🔄 Reset</button>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-item office" id="card-office">
+                <div class="stat-label">Office Hours (Mon-Fri 9-6)</div>
+                <div class="stat-value" id="val-office">-</div>
+                <div class="stat-desc">標準工作時段</div>
+            </div>
+            <div class="stat-item night" id="card-night">
+                <div class="stat-label">Weeknights (Out of Office)</div>
+                <div class="stat-value" id="val-night">-</div>
+                <div class="stat-desc">平日非上班時段</div>
+            </div>
+            <div class="stat-item weekend" id="card-weekend">
+                <div class="stat-label">Weekends (Sat / Sun)</div>
+                <div class="stat-value" id="val-weekend">-</div>
+                <div class="stat-desc">週末假日全天</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="mainChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // 1. 設定 (Configuration)
+    // ==========================================
+    const CONFIG = {
+        officeStart: 9, // 09:00
+        officeEnd: 18   // 18:00
+    };
+
+    let chartInstance = null;
+    let rawData = [];
+    let currentDuration = 7;
+
+    // ==========================================
+    // 2. 數據處理與獲取 (Logic & Fetch)
+    // ==========================================
+    
+    function calculatePerformance(messages) {
+        const chats = {};
+        messages.forEach(m => {
+            const chatId = m.wid;
+            if (!chats[chatId]) chats[chatId] = [];
+            chats[chatId].push(m);
+        });
+
+        const performanceData = [];
+        Object.keys(chats).forEach(chatId => {
+            const sortedMsgs = chats[chatId].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            let pendingInboundTime = null;
+
+            sortedMsgs.forEach(msg => {
+                if (msg.direction === 'in') {
+                    if (pendingInboundTime === null) pendingInboundTime = new Date(msg.createdAt).getTime();
+                } else if (msg.direction === 'out' && pendingInboundTime !== null) {
+                    const replyTime = new Date(msg.createdAt).getTime();
+                    const diffSeconds = Math.floor((replyTime - pendingInboundTime) / 1000);
+                    if (diffSeconds >= 0) {
+                        performanceData.push({
+                            timestamp: replyTime,
+                            seconds: diffSeconds,
+                            category: getCategory(new Date(msg.createdAt))
+                        });
+                    }
+                    pendingInboundTime = null;
+                }
+            });
+        });
+        return performanceData.sort((a, b) => a.timestamp - b.timestamp);
+    }
+
+    async function fetchData() {
+        try {
+            const statusEl = document.getElementById('rangeDisplay');
+            statusEl.innerText = "Connecting to AWS Cloud...";
+            
+            const AWS_URL = 'https://gj6m4nujm6.execute-api.ap-southeast-2.amazonaws.com/default/WassengerMonitor';
+            
+            console.log("Fetching from:", AWS_URL);
+            const response = await fetch(AWS_URL, {
+                method: 'GET',
+                mode: 'cors',
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            console.log("Response Status:", response.status);
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("Server Response Error:", errorText);
+                throw new Error(`HTTP ${response.status}: ${errorText || 'Unknown Server Error'}`);
+            }
+
+            const rawItems = await response.json();
+            console.log("Raw data received:", rawItems);
+
+            if (!Array.isArray(rawItems)) {
+                console.error("Expected array but got:", typeof rawItems, rawItems);
+                throw new Error("Invalid data format: Expected an array from Cloud.");
+            }
+
+            const processedData = calculatePerformance(rawItems);
+            rawData = processedData.map(d => ({ ...d, timestamp: new Date(d.timestamp) }));
+            
+            statusEl.innerText = `Cloud Sync: ${rawItems.length} messages found, ${processedData.length} pairs calculated.`;
+            refreshView();
+        } catch (error) {
+            console.error('Detailed Fetch Error:', error);
+            const statusEl = document.getElementById('rangeDisplay');
+            
+            if (error.message.includes('Failed to fetch')) {
+                statusEl.innerText = "Connection Failed: Possible CORS error or API is down.";
+            } else {
+                statusEl.innerText = `Error: ${error.message}`;
+            }
+        }
+    }
+
+    function getCategory(dateObj) {
+        const day = dateObj.getDay();
+        const hour = dateObj.getHours();
+        if (day === 0 || day === 6) return 'WEEKEND';
+        if (hour >= CONFIG.officeStart && hour < CONFIG.officeEnd) return 'OFFICE';
+        return 'WEEKNIGHT';
+    }
+
+    // ==========================================
+    // 3. 核心邏輯 (Filtering & Processing)
+    // ==========================================
+    function setDuration(days) {
+        currentDuration = days;
+        document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`btn-${days}`).classList.add('active');
+        refreshView();
+    }
+
+    function refreshView() {
+        const anchorStr = document.getElementById('anchorDate').value;
+        const filterType = document.getElementById('timeFilter').value; // 獲取篩選值
+        if (!anchorStr) return;
+
+        // 1. 計算日期區間
+        const endDate = new Date(anchorStr);
+        endDate.setHours(23, 59, 59, 999);
+        const startDate = new Date(endDate);
+        startDate.setDate(endDate.getDate() - (currentDuration - 1));
+        startDate.setHours(0, 0, 0, 0);
+
+        const fmt = d => dayjs(d).format('YYYY/MM/DD');
+        document.getElementById('rangeDisplay').innerText = `${fmt(startDate)} - ${fmt(endDate)}`;
+
+        // 2. 雙重篩選 (日期 + 獨立時段)
+        const filtered = rawData.filter(d => {
+            // A. 日期篩選
+            if (d.timestamp < startDate || d.timestamp > endDate) return false;
+            
+            // B. 時段獨立篩選邏輯
+            if (filterType === 'ALL') return true;
+            if (filterType === 'OFFICE' && d.category !== 'OFFICE') return false;
+            if (filterType === 'NIGHT' && d.category !== 'WEEKNIGHT') return false;
+            if (filterType === 'WEEKEND' && d.category !== 'WEEKEND') return false;
+            
+            return true;
+        });
+
+        // 3. 更新 UI
+        updateStatsCards(filtered, filterType);
+        updateChart(filtered, startDate, endDate, filterType);
+    }
+
+    function updateStatsCards(data, filterType) {
+        // 卡片 ID 對照表
+        const cards = {
+            'OFFICE': document.getElementById('card-office'),
+            'NIGHT': document.getElementById('card-night'),
+            'WEEKEND': document.getElementById('card-weekend')
+        };
+
+        // 重置所有卡片狀態
+        Object.values(cards).forEach(c => c.classList.remove('dimmed'));
+
+        // 根據篩選模式，將「非當前選中」的卡片變暗
+        if (filterType === 'OFFICE') {
+            cards['NIGHT'].classList.add('dimmed');
+            cards['WEEKEND'].classList.add('dimmed');
+        } else if (filterType === 'NIGHT') {
+            cards['OFFICE'].classList.add('dimmed');
+            cards['WEEKEND'].classList.add('dimmed');
+        } else if (filterType === 'WEEKEND') {
+            cards['OFFICE'].classList.add('dimmed');
+            cards['NIGHT'].classList.add('dimmed');
+        }
+
+        // 計算數值 (注意：即便卡片變暗，若使用者選擇 ALL，這裡仍會計算所有值；若篩選特定類別，其他類別數據會是 N/A 或 0)
+        // 這裡我們直接用 filter 後的 data 計算會導致沒選中的變 0，
+        // 為了讓使用者在單選時也能參考其他數據，我們可以選擇「不重新計算被隱藏的卡片」或者「顯示為 --」。
+        // 此處邏輯：顯示目前篩選結果的數據。
+        
+        const groups = { OFFICE: [], WEEKNIGHT: [], WEEKEND: [] };
+        data.forEach(d => groups[d.category].push(d.seconds));
+        
+        const fmt = (arr) => arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(0) + 's' : '--';
+        
+        // 僅更新未變暗的卡片，或者更新全部但被濾掉的會顯示 --
+        if(filterType === 'ALL' || filterType === 'OFFICE') 
+            document.getElementById('val-office').innerText = fmt(groups.OFFICE);
+        
+        if(filterType === 'ALL' || filterType === 'NIGHT') 
+            document.getElementById('val-night').innerText = fmt(groups.WEEKNIGHT);
+            
+        if(filterType === 'ALL' || filterType === 'WEEKEND') 
+            document.getElementById('val-weekend').innerText = fmt(groups.WEEKEND);
+    }
+
+    // ==========================================
+    // 4. 圖表渲染
+    // ==========================================
+    function updateChart(data, start, end, filterType) {
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+
+        // 決定顯示哪些 Dataset
+        const vis = {
+            office: filterType === 'ALL' || filterType === 'OFFICE',
+            night:  filterType === 'ALL' || filterType === 'NIGHT',
+            weekend: filterType === 'ALL' || filterType === 'WEEKEND'
+        };
+
+        if (currentDuration === 1) {
+            renderDailyDetail(ctx, data);
+        } else {
+            renderMultiDayAvg(ctx, data, start, end, vis);
+        }
+    }
+
+    function renderMultiDayAvg(ctx, data, start, end, vis) {
+        const datesMap = {};
+        let curr = new Date(start);
+        while (curr <= end) {
+            const key = dayjs(curr).format('MM/DD');
+            datesMap[key] = { OFFICE: [], WEEKNIGHT: [], WEEKEND: [] };
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        data.forEach(d => {
+            const key = dayjs(d.timestamp).format('MM/DD');
+            if (datesMap[key]) datesMap[key][d.category].push(d.seconds);
+        });
+
+        const labels = Object.keys(datesMap);
+        const avg = (arr) => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+
+        const datasets = [];
+        
+        if (vis.office) {
+            datasets.push({
+                label: 'Office Hours',
+                data: labels.map(l => avg(datesMap[l].OFFICE)),
+                backgroundColor: '#10b981'
+            });
+        }
+        if (vis.night) {
+            datasets.push({
+                label: 'Weeknights',
+                data: labels.map(l => avg(datesMap[l].WEEKNIGHT)),
+                backgroundColor: '#f59e0b'
+            });
+        }
+        if (vis.weekend) {
+            datasets.push({
+                label: 'Weekends',
+                data: labels.map(l => avg(datesMap[l].WEEKEND)),
+                backgroundColor: '#ef4444'
+            });
+        }
+
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { grid: { display: false } },
+                    y: { beginAtZero: true, title: { display: true, text: 'Avg Seconds' } }
+                }
+            }
+        });
+    }
+
+    function renderDailyDetail(ctx, data) {
+        // 單日圖表只需依賴 filter 過後的 data 即可，顏色會自動對應
+        const labels = data.map(d => dayjs(d.timestamp).format('HH:mm'));
+        const values = data.map(d => d.seconds);
+        const colors = data.map(d => {
+            if(d.category === 'OFFICE') return '#10b981';
+            if(d.category === 'WEEKNIGHT') return '#f59e0b';
+            return '#ef4444';
+        });
+
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Response Time',
+                    data: values,
+                    backgroundColor: colors,
+                    barThickness: 6
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, title: { display: true, text: 'Seconds' } } },
+                plugins: { legend: { display: false } }
+            }
+        });
+    }
+
+    // ==========================================
+    // 5. 初始化
+    // ==========================================
+    function regenerateData() {
+        document.getElementById('anchorDate').value = dayjs().format('YYYY-MM-DD');
+        document.getElementById('timeFilter').value = 'ALL';
+        fetchData(); // 重新從後端抓取
+    }
+    
+    // 首次載入
+    document.getElementById('anchorDate').value = dayjs().format('YYYY-MM-DD');
+    setDuration(7);
+    fetchData();
+
+</script>
+</body>
+</html>
