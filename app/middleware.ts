@@ -2,6 +2,16 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 export function middleware(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  
+  // Allow Cron Jobs to bypass Basic Auth
+  if (request.nextUrl.pathname.startsWith('/api/performance')) {
+    const authHeader = request.headers.get('authorization');
+    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+      return NextResponse.next();
+    }
+  }
+
   // Define credentials (fallback to defaults if not set in .env)
   const user = process.env.ADMIN_USER || 'admin';
   const pass = process.env.ADMIN_PASSWORD || 'admin';
@@ -12,11 +22,17 @@ export function middleware(request: NextRequest) {
   if (authHeader) {
     // Decode the Base64 encoded 'Basic <token>'
     const authValue = authHeader.split(' ')[1];
-    const [u, p] = atob(authValue).split(':');
-
-    // Check credentials
-    if (u === user && p === pass) {
-      return NextResponse.next();
+    // Check if it's Basic Auth
+    if (!authValue.startsWith('Bearer')) {
+        try {
+            const [u, p] = atob(authValue).split(':');
+            // Check credentials
+            if (u === user && p === pass) {
+              return NextResponse.next();
+            }
+        } catch (e) {
+            // Invalid base64
+        }
     }
   }
 
