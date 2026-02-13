@@ -117,6 +117,34 @@ function SchoolListContent() {
       <Table {...tableProps} rowKey="school_id">
         <Table.Column dataIndex="school_name" title="Name" />
         <Table.Column 
+          dataIndex="crm_contacts" 
+          title="Contacts"
+          render={(contacts: any[]) => (
+            <Space direction="vertical" size={0}>
+              {contacts?.map((contact, i) => (
+                <div key={i} style={{ fontSize: '12px' }}>
+                  <b>{contact.name}</b> {contact.phone ? `(${contact.phone})` : ''}
+                </div>
+              ))}
+            </Space>
+          )}
+        />
+        <Table.Column 
+          dataIndex="teachers" 
+          title="Teachers (Users)"
+          render={(teachers: any[]) => (
+            <Space direction="vertical" size={0}>
+              {teachers?.map((teacher, i) => (
+                <div key={i} style={{ fontSize: '12px' }}>
+                  <Tag color={teacher.is_admin ? "purple" : "default"}>{teacher.name || 'Unknown'}</Tag>
+                  <div style={{ color: '#888' }}>{teacher.email}</div>
+                  {teacher.phone && <div>{teacher.phone}</div>}
+                </div>
+              ))}
+            </Space>
+          )}
+        />
+        <Table.Column 
           dataIndex="department" 
           title="Groups"
           render={(departments: any[]) => (

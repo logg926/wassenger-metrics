@@ -18,9 +18,12 @@ export async function GET(
     if (resource === 'department') {
         // Join with school table to get school_name
         query = supabaseAdmin.from(resource).select('*, school:school_id(school_name)', { count: 'exact' });
+    } else if (resource === 'crm_contacts') {
+        // Join with school table to get school_name
+        query = supabaseAdmin.from(resource).select('*, school:school_id(school_name)', { count: 'exact' });
     } else if (resource === 'school') {
-        // Join with department table to get related groups
-        query = supabaseAdmin.from(resource).select('*, department(group_name)', { count: 'exact' });
+        // Join with department and crm_contacts
+        query = supabaseAdmin.from(resource).select('*, department(group_name), crm_contacts(name, phone)', { count: 'exact' });
     } else {
         query = supabaseAdmin.from(resource).select('*', { count: 'exact' });
     }
@@ -75,6 +78,67 @@ export async function GET(
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (resource === 'school' && data) {
+        // Initialize teachers array for all schools
+        data.forEach((school: any) => {
+            school.teachers = [];
+        });
+
+        // Collect school IDs
+        const schoolIds = data.map((d: any) => d.school_id);
+        
+        if (schoolIds.length > 0) {
+            // Fetch teacher_school links
+            const { data: teacherSchools, error: tsError } = await supabaseAdmin
+                .from('teacher_school')
+                .select('user_id, school_id, is_admin')
+                .in('school_id', schoolIds);
+            
+            if (!tsError && teacherSchools && teacherSchools.length > 0) {
+                const userIds = teacherSchools.map((ts: any) => ts.user_id);
+                
+                if (userIds.length > 0) {
+                    // Fetch user details manually because of missing direct FKs between teacher_school and others
+                    const [profilesRes, contactsRes, rolesRes] = await Promise.all([
+                        supabaseAdmin.from('user_profiles').select('id, email').in('id', userIds),
+                        supabaseAdmin.from('teacher_contact').select('teacher_id, contact_number').in('teacher_id', userIds),
+                        supabaseAdmin.from('role').select('user_id, name').in('user_id', userIds)
+                    ]);
+                    
+                    const profilesMap = new Map(profilesRes.data?.map((p: any) => [p.id, p]) || []);
+                    const contactsMap = new Map(contactsRes.data?.map((c: any) => [c.teacher_id, c]) || []);
+                    const rolesMap = new Map(rolesRes.data?.map((r: any) => [r.user_id, r]) || []);
+
+                    // Map back to schools
+                    const schoolTeachersMap = new Map();
+                    teacherSchools.forEach((ts: any) => {
+                        if (!schoolTeachersMap.has(ts.school_id)) {
+                            schoolTeachersMap.set(ts.school_id, []);
+                        }
+                        const profile = profilesMap.get(ts.user_id);
+                        const contact = contactsMap.get(ts.user_id);
+                        const role = rolesMap.get(ts.user_id);
+                        
+                        schoolTeachersMap.get(ts.school_id).push({
+                            user_id: ts.user_id,
+                            is_admin: ts.is_admin,
+                            email: profile?.email || 'Unknown',
+                            phone: contact?.contact_number || '',
+                            name: role?.name || 'Unknown'
+                        });
+                    });
+
+                    // Attach to data
+                    data.forEach((school: any) => {
+                        if (schoolTeachersMap.has(school.school_id)) {
+                            school.teachers = schoolTeachersMap.get(school.school_id);
+                        }
+                    });
+                }
+            }
+        }
     }
 
     // Response format expected by simple-rest: header x-total-count

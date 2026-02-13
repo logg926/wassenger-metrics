@@ -28,16 +28,23 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
                 edit: "/crm/schools/edit/:id",
                 meta: { label: "Schools", idColumnName: "school_id" },
               },
-              {
-                name: "department",
-                list: "/crm/departments",
-                show: "/crm/departments/show/:id",
-                create: "/crm/departments/create",
-                edit: "/crm/departments/edit/:id",
-                meta: { label: "Departments" },
-              },
-            ]}
-            options={{
+                          {
+                            name: "department",
+                            list: "/crm/departments",
+                            show: "/crm/departments/show/:id",
+                            create: "/crm/departments/create",
+                            edit: "/crm/departments/edit/:id",
+                            meta: { label: "Departments" },
+                          },
+                          {
+                            name: "crm_contacts",
+                            list: "/crm/contacts",
+                            show: "/crm/contacts/show/:id",
+                            create: "/crm/contacts/create",
+                            edit: "/crm/contacts/edit/:id",
+                            meta: { label: "Contacts" },
+                          },
+                        ]}            options={{
               syncWithLocation: true,
               warnWhenUnsavedChanges: true,
               disableTelemetry: true,
