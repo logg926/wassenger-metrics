@@ -7,9 +7,13 @@ const EXCLUDED_CHATS = (process.env.EXCLUDED_CHATS || '').split(',').map(s => s.
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
 const getCategory = (dateObj: Date) => {
-    const day = dateObj.getDay();
-    const hour = dateObj.getHours();
-    const minute = dateObj.getMinutes();
+    // Convert UTC to Hong Kong Time
+    const hkDateStr = dateObj.toLocaleString("en-US", {timeZone: "Asia/Hong_Kong"});
+    const hkDate = new Date(hkDateStr);
+
+    const day = hkDate.getDay();
+    const hour = hkDate.getHours();
+    const minute = hkDate.getMinutes();
     
     // Office hours: Monday to Friday (1-5)
     if (day >= 1 && day <= 5) {
