@@ -12,7 +12,7 @@ export async function GET(
     // Basic Validation
     if (!resource) return NextResponse.json({ error: "Resource required" }, { status: 400 });
 
-    let query;
+    let query: any;
     
     // Handle specific resource logic (e.g., joins)
     if (resource === 'department') {
@@ -38,6 +38,28 @@ export async function GET(
     if (_sort) {
       query = query.order(_sort, { ascending: _order === 'ASC' });
     }
+
+    // Handle Global Search (q)
+    const q = searchParams.get('q');
+    if (q) {
+        if (resource === 'school') {
+            query = query.or(`school_name.ilike.%${q}%,school_short_id.ilike.%${q}%`);
+        } else if (resource === 'department') {
+             query = query.or(`department_type.ilike.%${q}%,group_name.ilike.%${q}%`);
+        }
+    }
+
+    // Handle Generic Filters
+    // Iterate all params and filter out special ones
+    const reservedParams = ['_start', '_end', '_sort', '_order', 'q', 'id'];
+    searchParams.forEach((value, key) => {
+        if (!reservedParams.includes(key) && value) {
+             // Basic equality filter. 
+             // Ideally we could support operators like state_neq, amount_gt etc if we parse keys
+             // For now, strict equality is enough for filtering by state/category
+             query = query.eq(key, value);
+        }
+    });
     
     // Handle ID filtering for "many" requests (e.g. relation fetches)
     // Refine sends ?id=1&id=2 for multiple IDs

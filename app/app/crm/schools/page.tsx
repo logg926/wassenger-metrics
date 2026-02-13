@@ -1,17 +1,55 @@
 "use client";
 
 import { useTable, List, EditButton, ShowButton, DeleteButton } from "@refinedev/antd";
-import { Table, Space, Tag } from "antd";
-import { useNavigation } from "@refinedev/core";
+import { Table, Space, Tag, Form, Input, Select, Card, Row, Col } from "antd";
+import { useNavigation, CrudFilters, HttpError } from "@refinedev/core";
 import { Suspense } from "react";
 
 function SchoolListContent() {
-  const { tableProps } = useTable({
+  const { tableProps, searchFormProps, setFilters } = useTable<{
+    school_id: string;
+    school_name: string;
+    school_short_id: string;
+    category: string;
+    state: string;
+    amount: number;
+    department: any[];
+  }, HttpError, { q: string; state: string; category: string }>({
     syncWithLocation: true,
     resource: "school",
     meta: {
       select: "*",
       idColumnName: "school_id",
+    },
+    onSearch: (params) => {
+      const filters: CrudFilters = [];
+      const { q, state, category } = params;
+
+      if (q) {
+        filters.push({
+          field: "q",
+          operator: "eq", 
+          value: q,
+        });
+      }
+
+      if (state) {
+        filters.push({
+          field: "state",
+          operator: "eq",
+          value: state,
+        });
+      }
+
+      if (category) {
+        filters.push({
+          field: "category",
+          operator: "eq",
+          value: category,
+        });
+      }
+
+      return filters;
     },
   });
 
@@ -19,6 +57,63 @@ function SchoolListContent() {
 
   return (
     <List>
+      <Card style={{ marginBottom: "20px" }}>
+        <Form {...searchFormProps} layout="vertical">
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item label="Search" name="q">
+                <Input placeholder="Search by name or short ID" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="State" name="state">
+                <Select
+                  allowClear
+                  placeholder="Select State"
+                  options={[
+                    { value: "paid", label: "Paid" },
+                    { value: "not_paid", label: "Not Paid" },
+                    { value: "rejected", label: "Rejected" },
+                    { value: "quoted", label: "Quoted" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item label="Category" name="category">
+                <Select
+                  allowClear
+                  placeholder="Select Category"
+                  options={[
+                    { value: "primary", label: "Primary" },
+                    { value: "secondary", label: "Secondary" },
+                    { value: "kindergarten", label: "Kindergarten" },
+                    { value: "special", label: "Special" },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Form.Item>
+                 <Space>
+                   <button type="submit" className="ant-btn ant-btn-primary" onClick={searchFormProps.form?.submit}>Search</button>
+                   <button 
+                     type="button" 
+                     className="ant-btn" 
+                     onClick={() => {
+                       searchFormProps.form?.resetFields();
+                       setFilters([], "replace");
+                     }}
+                   >
+                     Reset
+                   </button>
+                 </Space>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Card>
+
       <Table {...tableProps} rowKey="school_id">
         <Table.Column dataIndex="school_name" title="Name" />
         <Table.Column 

@@ -52,7 +52,8 @@ function SchoolEditContent() {
             options={[
               { value: "paid", label: "Paid" },
               { value: "not_paid", label: "Not Paid" },
-              { value: "trial", label: "Trial" },
+              { value: "rejected", label: "Rejected" },
+              { value: "quoted", label: "Quoted" },
             ]}
           />
         </Form.Item>
