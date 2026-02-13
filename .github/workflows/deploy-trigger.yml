@@ -1,0 +1,32 @@
+name: Deploy to Trigger.dev
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'trigger/**'
+      - '.github/workflows/deploy-trigger.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: ./trigger
+        run: bun install
+
+      - name: Deploy to Trigger.dev
+        working-directory: ./trigger
+        env:
+          TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
+        run: bunx trigger.dev@latest deploy
