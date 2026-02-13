@@ -296,9 +296,12 @@ export default function Home() {
                   <div className='flex justify-between items-center flex-wrap gap-4 mb-5'>
                       <div>
                           <h2 className='text-2xl font-bold text-gray-900'>客服績效分析 (Analytics)</h2>
-                          <div className='text-sm text-gray-500 font-mono'>
-                              {anchorDate ? `${dayjs(anchorDate).subtract(currentDuration - 1, 'day').format('YYYY/MM/DD')} - ${dayjs(anchorDate).format('YYYY/MM/DD')}` : 'Loading...'}
-                              <span className='ml-4 text-blue-600 font-bold'>{status}</span>
+                          <div className='flex items-center gap-4 text-sm text-gray-500 font-mono'>
+                              <span>{anchorDate ? `${dayjs(anchorDate).subtract(currentDuration - 1, 'day').format('YYYY/MM/DD')} - ${dayjs(anchorDate).format('YYYY/MM/DD')}` : 'Loading...'}</span>
+                              <span className='text-blue-600 font-bold'>{status}</span>
+                              <a href="/crm" className="ml-4 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors no-underline font-sans font-medium">
+                                  Go to CRM &rarr;
+                              </a>
                           </div>
                       </div>
                       
